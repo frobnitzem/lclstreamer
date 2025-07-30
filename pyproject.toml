@@ -40,6 +40,7 @@ lclstreamer = { path = ".", editable = true }
 [tool.pixi.environments]
 psana = ["psana"]
 psana2 = ["psana2"]
+test = { features = ["test"], solve-group = "default" }
 
 [tool.pixi.feature.psana.activation]
 scripts = ["activation-psana.sh"]
@@ -63,9 +64,13 @@ libfabric1 = { version = ">=2.1.0,<5", channel = "conda-forge" }
 libnl = { version = ">=3.11.0,<4", channel = "conda-forge" }
 rdma-core = { version = ">=57.0,<58", channel = "conda-forge" }
 
+[tool.pixi.feature.test.tasks]
+test = "pytest"
+
 [dependency-groups]
 psana = ["typer>=0.15.2,<0.16", "numpy", "stream @ git+https://github.com/frobnitzem/stream.py", "pydantic>=2.10.6,<3", "pyyaml>=6.0.2,<7", "hdf5plugin>=5.1.0,<6", "pyzmq", "pynng>=0.8.1,<0.9", "mkdocs-material>=9.6.11,<10", "mkdocstrings-python>=1.16.10,<2", "rich>=14.0.0,<15"]
 psana2 = ["typer>=0.15.2,<0.16", "numpy", "stream @ git+https://github.com/frobnitzem/stream.py", "pydantic>=2.10.6,<3", "pyyaml>=6.0.2,<7", "hdf5plugin>=5.1.0,<6", "pyzmq", "pynng>=0.8.1,<0.9", "mkdocs-material>=9.6.11,<10", "mkdocstrings-python>=1.16.10,<2", "rich>=14.0.0,<15"]
+test = ["pytest", "mypy", "black"]
 
 [tool.pixi.tasks]
 
