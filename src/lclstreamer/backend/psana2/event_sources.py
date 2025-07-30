@@ -1,13 +1,8 @@
 import sys
 from collections.abc import Generator
-from typing import Any, cast
+from typing import Any, cast, Optional
 
-try:
-    from psana import DataSource, MPIDataSource  # type: ignore
-except ImportError:
-    DataSource = None # type: ignore
-    MPIDataSource = None # type: ignore
-
+from psana import DataSource # type: ignore
 from stream.core import source
 
 from ...models.parameters import DataSourceParameters, LclstreamerParameters, Parameters
@@ -19,18 +14,18 @@ from ...protocols.backend import (
 from ...utils.logging_utils import log
 from ..generic.data_sources import GenericRandomNumpyArray  # noqa: F401
 from .data_sources import (  # noqa: F401
-    Psana1AreaDetector,
-    Psana1AssembledAreaDetector,
-    Psana1BbmonDetectorTotalIntensity,
-    Psana1EvrCodes,
-    Psana1IpmDetector,
-    Psana1PV,
-    Psana1Timestamp,
-    Psana1UsdUsbDetector,
+    Psana2AreaDetector,
+    Psana2AssembledAreaDetector,
+    Psana2BbmonDetectorTotalIntensity,
+    Psana2EvrCodes,
+    Psana2IpmDetector,
+    Psana2PV,
+    Psana2Timestamp,
+    Psana2UsdUsbDetector,
 )
 
 
-class Psana1EventSource(EventSourceProtocol):
+class Psana2EventSource(EventSourceProtocol):
     """
     See documentation of the `__init__` function.
     """
@@ -39,7 +34,7 @@ class Psana1EventSource(EventSourceProtocol):
         self, parameters: Parameters, worker_pool_size: int, worker_rank: int
     ) -> None:
         """
-        Initializes a psana1 event source
+        Initializes a psana2 event source
 
         Arguments:
 
@@ -57,19 +52,35 @@ class Psana1EventSource(EventSourceProtocol):
             parameters.data_sources
         )
 
-        if "shmem" in lclstreamer_parameters.source_identifier:
-            self._event_source: Generator[Any] = cast(
-                Generator[Any],
-                DataSource(lclstreamer_parameters.source_identifier).events(),
-            )
-        else:
-            psana_source_string: str = lclstreamer_parameters.source_identifier
-            if not psana_source_string.endswith(":smd"):
-                psana_source_string = f"{psana_source_string}:smd"
-            self._event_source = cast(
-                Generator[Any],
-                MPIDataSource(psana_source_string).events(),
-            )
+        #if "shmem" in lclstreamer_parameters.source_identifier:
+        #    self._event_source: Generator[Any] = cast(
+        #        Generator[Any],
+        #        DataSource(lclstreamer_parameters.source_identifier).events(),
+        #    )
+        #else:
+        #    psana_source_string: str = lclstreamer_parameters.source_identifier
+        #    if not psana_source_string.endswith(":smd"):
+        #        psana_source_string = f"{psana_source_string}:smd"
+        #    self._event_source = cast(
+        #        Generator[Any],
+        #        DataSource(psana_source_string).events(),
+        #    )
+
+        sid = lclstreamer_parameters.source_identifier
+        # FIXME: move parsing code to parameter declaration
+        info = {}
+        for elem in sid.split(':'):
+            if '=' not in elem:
+                raise ValueError(f"Invalid sid: {sid}")
+            k, v = elem.split('=', 1)
+            info[k] = v
+
+        expname = info['exp']
+        runnum = int(info['run'])
+
+        self._run = next(DataSource(exp=expname, run=[runnum]).runs())
+        self._event_source = self._run.events()
+        #self._event_source = DataSource(lclstreamer_parameters.source_identifier).events()
 
         self._data_sources: dict[str, DataSourceProtocol] = {}
         data_source_name: str
@@ -82,6 +93,7 @@ class Psana1EventSource(EventSourceProtocol):
                 self._data_sources[data_source_name] = data_source_class(
                     name=data_source_name,
                     parameters=data_source_parameters[data_source_name],
+                    run=self._run,
                 )
             except NameError:
                 log.error(
@@ -93,7 +105,7 @@ class Psana1EventSource(EventSourceProtocol):
     @source
     def get_events(
         self,
-    ) -> Generator[dict[str, StrFloatIntNDArray | None]]:
+    ) -> Generator[dict[str, StrFloatIntNDArray|None]]:
         """
         Retrieves an event from the data source
 
@@ -103,7 +115,7 @@ class Psana1EventSource(EventSourceProtocol):
         """
         psana_event: Any
         for psana_event in self._event_source:
-            data: dict[str, StrFloatIntNDArray | None] = {}
+            data: dict[str, Optional[StrFloatIntNDArray]] = {}
 
             data_source_name: str
             for data_source_name in self._data_sources:
